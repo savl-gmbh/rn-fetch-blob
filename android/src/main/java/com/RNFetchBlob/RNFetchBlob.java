@@ -41,10 +41,12 @@ public class RNFetchBlob extends ReactContextBaseJavaModule {
     private final OkHttpClient mClient;
 
     static ReactApplicationContext RCTContext;
+    private static LinkedBlockingQueue<Runnable> downloadQueue = new LinkedBlockingQueue<>();
+    private static ThreadPoolExecutor downloadThreadPool = new ThreadPoolExecutor(2, 10, 5000, TimeUnit.MILLISECONDS, downloadQueue);
     private static LinkedBlockingQueue<Runnable> taskQueue = new LinkedBlockingQueue<>();
-    private static ThreadPoolExecutor threadPool = new ThreadPoolExecutor(5, 10, 5000, TimeUnit.MILLISECONDS, taskQueue);
+    private static ThreadPoolExecutor threadPool = new ThreadPoolExecutor(5, 20, 5000, TimeUnit.MILLISECONDS, taskQueue);
     static LinkedBlockingQueue<Runnable> fsTaskQueue = new LinkedBlockingQueue<>();
-    private static ThreadPoolExecutor fsThreadPool = new ThreadPoolExecutor(2, 10, 5000, TimeUnit.MILLISECONDS, taskQueue);
+    private static ThreadPoolExecutor fsThreadPool = new ThreadPoolExecutor(2, 10, 5000, TimeUnit.MILLISECONDS, fsTaskQueue);
     private static boolean ActionViewVisible = false;
     private static SparseArray<Promise> promiseTable = new SparseArray<>();
 
@@ -161,7 +163,12 @@ public class RNFetchBlob extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void writeArrayChunk(final String streamId, final ReadableArray dataArray, final Callback callback) {
-        RNFetchBlobFS.writeArrayChunk(streamId, dataArray, callback);
+        threadPool.execute(new Runnable() {
+            @Override
+            public void run() {
+                RNFetchBlobFS.writeArrayChunk(streamId, dataArray, callback);
+            }
+        });
     }
 
     @ReactMethod
@@ -200,13 +207,23 @@ public class RNFetchBlob extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void writeStream(String path, String encode, boolean append, Callback callback) {
-        new RNFetchBlobFS(this.getReactApplicationContext()).writeStream(path, encode, append, callback);
+    public void writeStream(final String path, final String encode, final boolean append, final Callback callback) {
+        threadPool.execute(new Runnable() {
+            @Override
+            public void run() {
+                new RNFetchBlobFS(getReactApplicationContext()).writeStream(path, encode, append, callback));
+            }
+        });
     }
 
     @ReactMethod
-    public void writeChunk(String streamId, String data, Callback callback) {
-        RNFetchBlobFS.writeChunk(streamId, data, callback);
+    public void writeChunk(final String streamId, final String data, final Callback callback) {
+        threadPool.execute(new Runnable() {
+            @Override
+            public void run() {
+                RNFetchBlobFS.writeChunk(streamId, data, callback);
+            }
+        });
     }
 
     @ReactMethod
@@ -350,12 +367,12 @@ public class RNFetchBlob extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void fetchBlob(ReadableMap options, String taskId, String method, String url, ReadableMap headers, String body, final Callback callback) {
-        new RNFetchBlobReq(options, taskId, method, url, headers, body, null, mClient, callback).run();
+        downloadThreadPool.execute(new RNFetchBlobReq(options, taskId, method, url, headers, body, null, mClient, callback));
     }
 
     @ReactMethod
     public void fetchBlobForm(ReadableMap options, String taskId, String method, String url, ReadableMap headers, ReadableArray body, final Callback callback) {
-        new RNFetchBlobReq(options, taskId, method, url, headers, null, body, mClient, callback).run();
+        downloadThreadPool.execute(new RNFetchBlobReq(options, taskId, method, url, headers, null, body, mClient, callback));
     }
 
     @ReactMethod
