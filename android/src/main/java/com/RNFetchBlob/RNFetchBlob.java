@@ -211,7 +211,7 @@ public class RNFetchBlob extends ReactContextBaseJavaModule {
         threadPool.execute(new Runnable() {
             @Override
             public void run() {
-                new RNFetchBlobFS(getReactApplicationContext()).writeStream(path, encode, append, callback));
+                new RNFetchBlobFS(getReactApplicationContext()).writeStream(path, encode, append, callback);
             }
         });
     }
